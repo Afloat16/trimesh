@@ -140,6 +140,37 @@ class RegistrationTest(g.unittest.TestCase):
         register, _, _ = procrustes(a.vertices, b.vertices)
         assert not g.np.allclose(register, transform)
 
+    def test_procrustes_nonuniform_rotation(self):
+        from scipy.spatial.transform import Rotation
+
+        rng = g.np.random.default_rng(51)
+        a = rng.normal(size=(12, 3))
+        b = a @ Rotation.from_rotvec([0.4, -0.3, 0.2]).as_matrix().T
+        b += rng.normal(scale=0.4, size=b.shape)
+        weights = g.np.geomspace(0.01, 10.0, len(a))
+        acenter = g.np.average(a, axis=0, weights=weights)
+        bcenter = g.np.average(b, axis=0, weights=weights)
+        rotation, _ = Rotation.align_vectors(b - bcenter, a - acenter, weights=weights)
+        expected = rotation.as_matrix()
+        matrix, _, cost = g.trimesh.registration.procrustes(
+            a, b, weights=weights, scale=False, reflection=False
+        )
+        assert g.np.allclose(matrix[:3, :3], expected)
+        assert g.np.allclose(matrix[:3, 3], bcenter - expected @ acenter)
+        # The weighted least-squares objective must be stationary under rotations.
+        for axis in g.np.eye(3):
+            values = []
+            for sign in (-1, 1):
+                perturb = Rotation.from_rotvec(sign * 1e-5 * axis).as_matrix()
+                transformed = (a - acenter) @ (perturb @ matrix[:3, :3]).T + bcenter
+                values.append(
+                    g.np.average(
+                        g.np.sum((transformed - b) ** 2, axis=1), weights=weights
+                    )
+                )
+            assert abs((values[1] - values[0]) / 2e-5) < 1e-8
+            assert cost <= min(values)
+
     def test_icp_mesh(self):
         # see if ICP alignment works with meshes
         m = g.trimesh.creation.box()
