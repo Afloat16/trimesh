@@ -62,9 +62,10 @@ def major_axis(points):
     axis : (dimension,) float
       Vector along approximate major axis
     """
-    _U, S, V = np.linalg.svd(points)
-    axis = util.unitize(np.dot(S, V))
-    return axis
+    # The first right singular vector maximizes the projected squared norm.
+    # Combining singular vectors would mix independent principal directions.
+    _U, _S, V = np.linalg.svd(points, full_matrices=False)
+    return V[0]
 
 
 def plane_fit(points):

@@ -301,3 +301,29 @@ def test_radial_sort():
     sort = g.trimesh.points.radial_sort(points[order], origin=[0, 0, 0], normal=[0, 0, 1])
     # should have re-established original order
     assert g.np.allclose(points, sort)
+
+
+def test_major_axis_principal_direction():
+    # Distinct singular values make the maximizer unique up to sign.
+    points = g.np.array(
+        [
+            [-4.0, 0.0, 0.0],
+            [4.0, 0.0, 0.0],
+            [0.0, -2.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    for matrix in g.random_transforms(5, translate=0.0):
+        rotated = g.trimesh.transform_points(points, matrix)
+        axis = g.trimesh.points.major_axis(rotated)
+        expected = matrix[:3, 0]
+        assert g.np.isclose(g.np.abs(g.np.dot(axis, expected)), 1.0)
+        assert g.np.isclose(g.np.sum((rotated @ axis) ** 2), 32.0)
+
+
+def test_major_axis_fewer_points_than_dimensions():
+    points = g.np.array([[2.0, 0.0, 0.0], [-2.0, 0.0, 0.0]])
+    axis = g.trimesh.points.major_axis(points)
+    assert g.np.allclose(g.np.abs(axis), [1.0, 0.0, 0.0])
