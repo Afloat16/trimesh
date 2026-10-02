@@ -301,3 +301,20 @@ def test_radial_sort():
     sort = g.trimesh.points.radial_sort(points[order], origin=[0, 0, 0], normal=[0, 0, 1])
     # should have re-established original order
     assert g.np.allclose(points, sort)
+
+
+def test_radial_sort_arbitrary_normals():
+    # Distinct angles and radii expose distorted plane coordinates.
+    theta = g.np.array([0.12, 0.31, 0.8, 1.7, 2.8, 3.4, 4.2, 5.8])
+    radius = g.np.array([1.0, 4.0, 2.0, 0.5, 3.0, 1.0, 7.0, 0.8])
+    order = g.np.array([4, 1, 7, 3, 6, 0, 5, 2])
+    origin = g.np.array([2.0, -3.0, 4.0])
+    for normal in ([1, 0, 0], [-1, 0, 0], [0, 0, 3], [1, 2, 3]):
+        basis = g.trimesh.util.generate_basis(normal)
+        points = origin + radius[:, None] * (
+            g.np.cos(theta)[:, None] * basis[0] + g.np.sin(theta)[:, None] * basis[1]
+        )
+        result = g.trimesh.points.radial_sort(points[order], origin, normal)
+        # Sorting may choose any starting angle, but must preserve cyclic order.
+        indices = g.np.linalg.norm(result[:, None] - points[None], axis=-1).argmin(axis=1)
+        assert g.np.all((g.np.roll(indices, -1) - indices) % len(points) == 1)

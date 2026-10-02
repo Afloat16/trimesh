@@ -136,8 +136,10 @@ def radial_sort(points, origin, normal, start=None):
     # create two axis perpendicular to each other and
     # the normal and project the points onto them
     if start is None:
-        axis0 = [normal[0], normal[2], -normal[1]]
-        axis1 = np.cross(normal, axis0)
+        # Equal-length perpendicular axes preserve angles in the plane.
+        # A component permutation of the normal can be parallel to it.
+        basis = util.generate_basis(normal)
+        axis0, axis1 = -basis[1], basis[0]
     else:
         normal, start = util.unitize([normal, start])
         if np.abs(1 - np.abs(np.dot(normal, start))) < tol.zero:
