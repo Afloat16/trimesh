@@ -303,6 +303,50 @@ def test_radial_sort():
     assert g.np.allclose(points, sort)
 
 
+def test_estimate_normals_plane():
+    # Define plane
+    n = g.np.array((-3.0, 5.0, -7.0))
+    n = n / g.np.linalg.norm(n)
+    d = 11.0
+    # Create point cloud on plane
+    x = g.np.linspace(-10.0, 10.0, 50)
+    y = g.np.linspace(-10.0, 10.0, 50)
+    x, y = g.np.meshgrid(x, y)
+    vertices = g.np.empty((x.size, 3))
+    vertices[:, 0] = x.ravel()
+    vertices[:, 1] = y.ravel()
+    vertices[:, 2] = (n[0] * vertices[:, 0] + n[1] * vertices[:, 1] + d) / -n[2]
+    pcl = g.trimesh.points.PointCloud(vertices)
+    # pcl.show()
+
+    normals = pcl.estimate_normals(10)
+
+    dot = g.np.sum(n * normals, axis=1)
+    dot = g.np.clip(dot, -1.0, 1.0)  # Otherwise rounding errors result in NaN
+    angle_errors = g.np.arccos(dot)
+    mask_close_to_zeros = angle_errors < g.np.deg2rad(1.0)
+    mask_close_to_pi = g.np.abs(angle_errors - g.np.pi) < g.np.deg2rad(1.0)
+    assert g.np.all(g.np.bitwise_xor(mask_close_to_zeros, mask_close_to_pi))
+
+
+def test_estimate_normals_sphere():
+    # Create point cloud on sphere
+    sphere = g.trimesh.creation.icosphere(subdivisions=4)
+    expected_normals = sphere.vertices
+    vertices = 10.0 * expected_normals + g.np.array((-13.0, 17.0, 55.0))
+    pcl = g.trimesh.points.PointCloud(vertices)
+    # pcl.show()
+
+    normals = pcl.estimate_normals()
+
+    dot = g.np.sum(expected_normals * normals, axis=1)
+    dot = g.np.clip(dot, -1.0, 1.0)  # Otherwise rounding errors result in NaN
+    angle_errors = g.np.arccos(dot)
+    mask_close_to_zeros = angle_errors < g.np.deg2rad(1.0)
+    mask_close_to_pi = g.np.abs(angle_errors - g.np.pi) < g.np.deg2rad(1.0)
+    assert g.np.all(g.np.bitwise_xor(mask_close_to_zeros, mask_close_to_pi))
+
+
 def test_radial_sort_arbitrary_normals():
     # Distinct angles and radii expose distorted plane coordinates.
     theta = g.np.array([0.12, 0.31, 0.8, 1.7, 2.8, 3.4, 4.2, 5.8])
