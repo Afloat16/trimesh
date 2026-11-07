@@ -25,10 +25,10 @@ def load_off(file_obj, **kwargs) -> dict:
     # comment strip will handle all cases of commenting
     text = comment_strip(decode_text(text)).strip()
 
-    # split the first key
-    _, header, raw = re.split("(COFF|OFF)", text, maxsplit=1)
-    if header.upper() not in ["OFF", "COFF"]:
-        raise NameError(f"Not an OFF file! Header was: `{header}`")
+    match = re.match(r"(?:COFF|OFF)(?=\s|$)", text)
+    if match is None:
+        raise ValueError("OFF file is missing the OFF or COFF header")
+    raw = text[match.end() :]
 
     # split into lines and remove whitespace
     splits = [i.strip() for i in str.splitlines(str(raw))]
@@ -41,7 +41,11 @@ def load_off(file_obj, **kwargs) -> dict:
     header = np.array(splits[0].split(), dtype=np.int64)
     if header.size < 2:
         raise ValueError("OFF file has a malformed vertex/face count line")
-    vertex_count, face_count = header[:2]
+    vertex_count, face_count = map(int, header[:2])
+    if vertex_count < 0 or face_count < 0:
+        raise ValueError("OFF vertex and face counts must be nonnegative")
+    if len(splits) < 1 + vertex_count + face_count:
+        raise ValueError("OFF file ends before its declared vertex or face count")
 
     vertices = np.array(
         [i.split()[:3] for i in splits[1 : vertex_count + 1]], dtype=np.float64
@@ -52,8 +56,12 @@ def load_off(file_obj, **kwargs) -> dict:
 
     # get lines with face data
     faces = [i.split() for i in splits[vertex_count + 1 : vertex_count + face_count + 1]]
-    # the first value is count
-    faces = [line[1 : int(line[0]) + 1] for line in faces]
+    # Values after the declared indices may contain optional face colors.
+    for i, line in enumerate(faces):
+        count = int(line[0])
+        if count < 0 or count > len(line) - 1:
+            raise ValueError("OFF face has an invalid vertex count")
+        faces[i] = line[1 : count + 1]
 
     faces = triangulate_quads(faces)
     # faces must reference vertices that actually exist, otherwise the mesh

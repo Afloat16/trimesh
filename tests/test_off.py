@@ -63,6 +63,20 @@ class OFFTests(g.unittest.TestCase):
         assert ok.faces.shape == (1, 3)
 
 
+    def test_record_boundaries(self):
+        vertices = b"0 0 0\n1 0 0\n0 1 0\n"
+        for data in (
+            b"NOTOFF\n0 0 0\n",
+            b"OFF\n-1 0 0\n",
+            b"OFF\n0 -1 0\n",
+            b"OFF\n3 2 0\n" + vertices + b"3 0 1 2\n",
+            b"OFF\n3 1 0\n" + vertices + b"4 0 1 2\n",
+            b"OFF\n3 1 0\n" + vertices + b"-1 0 1 2\n",
+        ):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                g.trimesh.exchange.off.load_off(g.io.BytesIO(data))
+
+
 if __name__ == "__main__":
     g.trimesh.util.attach_to_log()
     g.unittest.main()
