@@ -7,6 +7,34 @@ from trimesh.triangles import barycentric_to_points, points_to_barycentric
 
 
 class TrianglesTest(g.unittest.TestCase):
+    def test_coplanar_reference(self):
+        # Only the first triangle defines the reference plane. A later
+        # triangle must not match its own normal or another later plane.
+        xy = g.np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=float)
+        xz = xy[:, [0, 2, 1]]
+        yz = xy[:, [2, 0, 1]]
+        for offset in ([0, 0, 0], [3, -4, 5]):
+            for triangles, expected_any, expected_all in (
+                ([xy], False, True),
+                ([xy, xy[::-1]], True, True),
+                ([xy, xz], False, False),
+                ([xy, xz, yz], False, False),
+                ([xy, xz, xy[::-1]], True, False),
+                ([xy, xy + [0, 0, 1]], False, False),
+            ):
+                triangles = g.np.array(triangles) + offset
+                assert bool(g.trimesh.triangles.any_coplanar(triangles)) == expected_any
+                assert bool(g.trimesh.triangles.all_coplanar(triangles)) == expected_all
+
+    def test_coplanar_batch_tolerance(self):
+        # Adding faces must not divide plane distances by sqrt(face_count).
+        xy = g.np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=float)
+        for count in (2, 4, 16):
+            triangles = g.np.tile(xy, (count, 1, 1))
+            triangles[1:, :, 2] = g.tol.zero * 1.5
+            assert not g.trimesh.triangles.all_coplanar(triangles)
+            assert not g.trimesh.triangles.any_coplanar(triangles)
+
     def test_barycentric(self):
         for m in g.get_meshes(4):
             # a simple test which gets the barycentric coordinate at each of the three

@@ -159,7 +159,7 @@ def all_coplanar(triangles):
     if not util.is_shape(triangles, (-1, 3, 3)):
         raise ValueError("Triangles must be (n, 3, 3)!")
 
-    test_normal = normals(triangles)[0]
+    test_normal = normals(triangles)[0][:1]
     test_vertex = triangles[0][0]
     distances = point_plane_distance(
         points=triangles[1:].reshape((-1, 3)),
@@ -180,7 +180,7 @@ def any_coplanar(triangles):
     if not util.is_shape(triangles, (-1, 3, 3)):
         raise ValueError("Triangles must be (n, 3, 3)!")
 
-    test_normal = normals(triangles)[0]
+    test_normal = normals(triangles)[0][:1]
     test_vertex = triangles[0][0]
     distances = point_plane_distance(
         points=triangles[1:].reshape((-1, 3)),
