@@ -1,3 +1,5 @@
+import tracemalloc
+
 try:
     from . import generic as g
 except BaseException:
@@ -5,6 +7,59 @@ except BaseException:
 
 
 class SampleTest(g.unittest.TestCase):
+    def test_surface_sample_workspace(self):
+        # Sampling a few points must not build edge vectors for every face.
+        mesh = g.trimesh.Trimesh(
+            vertices=[[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            faces=g.np.tile([0, 1, 2], (20000, 1)),
+            process=False,
+        )
+        weights = g.np.ones(len(mesh.faces))
+        tracemalloc.start()
+        try:
+            points, index, barycentric = g.trimesh.sample.sample_surface(
+                mesh, 8, face_weight=weights, return_barycentric=True, seed=42
+            )
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        # Allow ample workspace beyond the 160 kB cumulative weights.
+        assert peak < 5 * weights.nbytes
+        assert points.shape == (8, 3)
+        assert (index >= 0).all() and (index < len(mesh.faces)).all()
+        g.np.testing.assert_allclose(points[:, :2], barycentric[:, 1:])
+        g.np.testing.assert_array_equal(points[:, 2], 0)
+
+    def test_surface_sample_texture_coordinates(self):
+        from PIL import Image
+
+        mesh = g.trimesh.creation.box()
+        image = Image.fromarray(
+            g.np.array(
+                [[[255, 0, 0], [0, 255, 0]], [[0, 0, 255], [255, 255, 255]]],
+                dtype=g.np.uint8,
+            )
+        )
+        mesh.visual = g.trimesh.visual.TextureVisuals(
+            uv=mesh.vertices[:, :2] + 0.5, image=image
+        )
+        for count in (0, 8, 100):
+            points, index, colors, barycentric = g.trimesh.sample.sample_surface(
+                mesh, count, sample_color=True, return_barycentric=True, seed=42
+            )
+            assert points.shape == (count, 3)
+            assert barycentric.shape == (count, 3)
+            expected = g.trimesh.visual.uv_to_interpolated_color(
+                points[:, :2] + 0.5, image
+            )
+            g.np.testing.assert_array_equal(colors, expected)
+            g.np.testing.assert_allclose(
+                g.trimesh.triangles.barycentric_to_points(
+                    mesh.triangles[index], barycentric
+                ),
+                points,
+            )
+
     def test_sample(self):
         m = g.get_mesh("featuretype.STL")
 

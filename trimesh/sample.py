@@ -79,22 +79,24 @@ def sample_surface(
     # get the index of the selected faces
     face_index = np.searchsorted(weight_cum, face_pick)
 
+    # Build edges only for sampled faces unless reusing each face is cheaper.
+    sample_first = len(face_index) < len(mesh.faces)
+    faces = mesh.faces[face_index] if sample_first else mesh.faces
     # pull triangles into the form of an origin + 2 vectors
-    tri_origins = mesh.vertices[mesh.faces[:, 0]]
-    tri_vectors = mesh.vertices[mesh.faces[:, 1:]].copy()
-    tri_vectors -= np.tile(tri_origins, (1, 2)).reshape((-1, 2, 3))
-
-    # pull the vectors for the faces we are going to sample from
-    tri_origins = tri_origins[face_index]
-    tri_vectors = tri_vectors[face_index]
+    tri_origins = mesh.vertices[faces[:, 0]]
+    tri_vectors = mesh.vertices[faces[:, 1:]]
+    tri_vectors -= tri_origins[:, None, :]
+    if not sample_first:
+        tri_origins = tri_origins[face_index]
+        tri_vectors = tri_vectors[face_index]
 
     if sample_color and hasattr(mesh.visual, "uv"):
-        uv_origins = mesh.visual.uv[mesh.faces[:, 0]]
-        uv_vectors = mesh.visual.uv[mesh.faces[:, 1:]].copy()
-        uv_origins_tile = np.tile(uv_origins, (1, 2)).reshape((-1, 2, 2))
-        uv_vectors -= uv_origins_tile
-        uv_origins = uv_origins[face_index]
-        uv_vectors = uv_vectors[face_index]
+        uv_origins = mesh.visual.uv[faces[:, 0]]
+        uv_vectors = mesh.visual.uv[faces[:, 1:]]
+        uv_vectors -= uv_origins[:, None, :]
+        if not sample_first:
+            uv_origins = uv_origins[face_index]
+            uv_vectors = uv_vectors[face_index]
 
     # randomly generate two 0-1 scalar components to multiply edge vectors b
     random_lengths = random((len(tri_vectors), 2, 1))
