@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 try:
     from . import generic as g
 except BaseException:
@@ -5,6 +7,30 @@ except BaseException:
 
 
 class PosesTest(g.unittest.TestCase):
+    def test_rejected_zero_variance(self):
+        mesh = g.trimesh.creation.box()
+        for center_mass in ([2, 0, 0], [0.5, 0, 0]):
+            # Bound the sampler so a regression fails instead of hanging.
+            # Zero covariance always returns the requested mean.
+            with patch("trimesh.poses.random_generator") as generator:
+                generator.return_value.multivariate_normal.side_effect = [
+                    g.np.array([center_mass]),
+                    RuntimeError("repeated an impossible zero-variance sample"),
+                ]
+                with self.assertRaisesRegex(ValueError, "inside the convex hull"):
+                    mesh.compute_stable_poses(center_mass=center_mass, sigma=0, seed=0)
+
+    def test_rejected_sample_with_variance(self):
+        mesh = g.trimesh.creation.box()
+        with patch("trimesh.poses.random_generator") as generator:
+            generator.return_value.multivariate_normal.side_effect = [
+                g.np.array([[2, 0, 0]]),
+                g.np.array([[0, 0, 0]]),
+            ]
+            transforms, probabilities = mesh.compute_stable_poses(sigma=0.1, seed=0)
+        assert transforms.shape == (6, 4, 4)
+        g.np.testing.assert_allclose(probabilities, g.np.full(6, 1 / 6))
+
     def test_nonsampling_poses(self):
         mesh = g.trimesh.creation.icosahedron()
 

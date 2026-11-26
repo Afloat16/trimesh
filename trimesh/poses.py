@@ -89,6 +89,8 @@ def compute_stable_poses(
             dots = diagonal_dot(c - cvh.triangles_center, cvh.face_normals)
             if np.all(dots < 0):
                 sample_coms.append(c)
+            elif sigma == 0:
+                raise ValueError("Center of mass must be inside the convex hull for sigma=0")
 
     norms_to_probs = {}  # Map from normal to probabilities
 
